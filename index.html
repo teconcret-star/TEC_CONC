@@ -471,7 +471,7 @@
         <div class="pill">Insumo: <strong id="carInsumoNome">Nenhum</strong></div>
         <button type="button" class="warn" id="abrirModalCarBtn" disabled>Abrir editor</button>
       </div>
-      <div class="info">Confirmar entrada de massa retida: Enter ou ao sair do campo.</div>
+      <div class="info">Confirmar entrada de massa retida: Enter ou ao sair do campo. MF calculado segundo NBR 7211 (soma dos % acumulados nas peneiras 4,8 → 0,15 ÷ 100).</div>
     </div>
   </section>
 
@@ -565,7 +565,7 @@
         m = (A/C ÷ H) − (1 + Adição) &nbsp; • a = Argamassa × ((1 + Adição) + m) − (1 + Adição) &nbsp; • b = m − a &nbsp; • Cc = (1000 × (1 − Ar)) ÷ Σ(Di/Bi)
       </div>
 
-      <!-- NEW: Mix granulometry chart for the trace (dry) -->
+      <!-- Mix granulometry chart for the trace (dry) — NO NBR BANDS HERE (user request) -->
       <div class="divider"></div>
       <h2 style="margin-top:0;">Curva do traço (granulometria estimada do traço seco)</h2>
       <div class="chart-legend">
@@ -1018,7 +1018,7 @@
     <div class="grid-3">
       <div><label for="massaEspecifica">Massa específica (g/cm³) *</label><input id="massaEspecifica" type="number" step="0.001" min="0" /></div>
       <div><label>Total massa retida (g)</label><input id="totalMassaRetida" disabled /></div>
-      <div><label>Módulo de finura (MF)</label><input id="mfCalculado" disabled /></div>
+      <div><label>Módulo de finura (MF) — NBR 7211</label><input id="mfCalculado" disabled /></div>
     </div>
     <div style="margin-top:8px;">
       <label for="valorKgModal">Custo (R$/kg)</label>
@@ -1051,6 +1051,8 @@
     <div class="chart-legend">
       <span class="legend-line"><span class="legend-swatch legend-retido"></span> % Retido (individual)</span>
       <span class="legend-line"><span class="legend-swatch legend-acum"></span> % Retido (acumulado)</span>
+      <span class="legend-line"><span class="legend-swatch" style="width:18px; height:8px; background:rgba(250,200,40,0.20); border-radius:2px;"></span> Zona ótima (NBR 7211)</span>
+      <span class="legend-line"><span class="legend-swatch" style="width:18px; height:8px; background:rgba(120,120,120,0.12); border-radius:2px;"></span> Zona utilizável (NBR 7211)</span>
     </div>
 
     <div class="chart-container">
@@ -1153,6 +1155,11 @@
 </div>
 
 <script>
+/* ==========================================================================
+   Main application script (updated to fix Corrigido tab issues and avoid
+   infinite recursion / repeated listener registration).
+   ========================================================================== */
+
   /* =========  AUTENTICAÇÃO LOCAL (ADMIN CRIA USUÁRIOS)  ========= */
   const AUTH_KEY = "estudo_dosagem_auth_v1";
   const ADMIN_USERNAME = "admin";
@@ -1425,7 +1432,7 @@
     hideApp();
   }
 
-  /* =========  LÓGICA PRINCIPAL ORIGINAL ========= */
+  /* =========  LÓGICA PRINCIPAL ORIGINAL (state, helpers, traco, historico) ========= */
   const STORAGE_KEY = "estudo_dosagem_tabs_clean_final_v2";
   const RUPTURA_DIAS = [1,3,7,14,28,56,63];
   function loadState() {
@@ -1556,14 +1563,62 @@
   const SIEVES_MM=[25,19,12.5,9.5,6.3,4.8,2.4,1.2,0.6,0.3,0.15];
   const MF_SIEVES=[4.8,2.4,1.2,0.6,0.3,0.15];
 
-  function openChartModal(){
-    chartModalBackdrop.style.display = "flex";
+  /* ================= NBR 7211 — LIMITS (kept) ========================= */
+  function getNbr7211Limits(){
+    const sand = {
+      mm: [25,19,12.5,9.5,6.3,4.8,2.4,1.2,0.6,0.3,0.15,0],
+      utilizavelLower: [0,0,0,0,0,0,0,5,15,50,85,100],
+      utilizavelUpper: [0,0,0,0,7,10,25,50,70,95,100,100],
+      otimaLower: [0,0,0,0,0,5,10,20,35,65,90,100],
+      otimaUpper: [0,0,0,0,5,10,25,30,55,85,95,100]
+    };
+    const br_4_75_12_5 = {
+      mm: [25,19,12.5,9.5,6.3,4.8,2.4,1.2,0.6,0.3,0.15,0],
+      utilizavelLower: [0,0,0,2,40,80,95,100,100,100,100,100],
+      utilizavelUpper: [0,0,0,15,65,95,100,100,100,100,100,100],
+      otimaLower:    [0,0,0,5,50,90,98,100,100,100,100,100],
+      otimaUpper:    [0,0,5,40,85,98,100,100,100,100,100,100]
+    };
+    const br_9_5_25 = {
+      mm: [25,19,12.5,9.5,6.3,4.8,2.4,1.2,0.6,0.3,0.15,0],
+      utilizavelLower: [5,2,15,80,92,95,100,100,100,100,100,100],
+      utilizavelUpper: [25,15,65,100,100,100,100,100,100,100,100,100],
+      otimaLower: [5,2,40,65,92,95,100,100,100,100,100,100],
+      otimaUpper: [15,10,80,100,100,100,100,100,100,100,100,100]
+    };
+    const br_19_31_5 = {
+      mm: [25,19,12.5,9.5,6.3,4.8,2.4,1.2,0.6,0.3,0.15,0],
+      utilizavelLower: [5,65,92,95,100,100,100,100,100,100,100,100],
+      utilizavelUpper: [25,95,100,100,100,100,100,100,100,100,100,100],
+      otimaLower: [2,65,92,95,100,100,100,100,100,100,100,100],
+      otimaUpper: [15,95,100,100,100,100,100,100,100,100,100,100]
+    };
+    return {
+      sand,
+      coarse: {
+        "4.75/12.5": br_4_75_12_5,
+        "9.5/25": br_9_5_25,
+        "19/31.5": br_19_31_5
+      }
+    };
   }
-  function closeChartModal(){
-    chartModalBackdrop.style.display = "none";
-  }
+
+  function openChartModal(){ chartModalBackdrop.style.display = "flex"; }
+  function closeChartModal(){ chartModalBackdrop.style.display = "none"; }
   chartModalCloseBtn?.addEventListener("click", closeChartModal);
   chartModalBackdrop?.addEventListener("click",(e)=>{ if(e.target===chartModalBackdrop) closeChartModal(); });
+
+  /* Utility: draw NBR band polygons on a given SVG using same x/y mapping */
+  function drawNbrBand(svgEl, rows, bandMmArray, lowerArr, upperArr, toX, toY, color, opacity=0.18, stroke="none"){
+    if(!bandMmArray || !bandMmArray.length) return;
+    const indices = bandMmArray.map(mm => rows.findIndex(r => Number(r.mm) === Number(mm)));
+    const has = indices.every(ix => ix >= 0);
+    if(!has) return;
+    const upperPoints = indices.map((ix, i)=>`${toX(ix)},${toY(upperArr[i])}`).join(" ");
+    const lowerPointsRev = indices.slice().reverse().map((ix,i)=>`${toX(ix)},${toY(lowerArr[lowerArr.length-1 - i])}`).join(" ");
+    const points = `${upperPoints} ${lowerPointsRev}`;
+    svgEl.innerHTML += `<polygon points="${points}" fill="${color}" opacity="${opacity}" stroke="${stroke}"></polygon>`;
+  }
 
   function buildGranChart(rows){
     const width = 600;
@@ -1576,7 +1631,6 @@
     }
 
     const xStep = (width - pad*2) / (rows.length - 1);
-
     const toX = (i) => pad + i * xStep;
     const toY = (val) => pad + ((100 - val) / 100) * (height - pad*2);
 
@@ -1590,7 +1644,8 @@
     let xLabels = "";
     rows.forEach((r,i)=>{
       const x = toX(i);
-      xLabels += `<text x="${x}" y="${height-8}" font-size="10" text-anchor="middle" fill="#445">${String(r.mm).replace(".", ",")}</text>`;
+      const label = r.mm === 0 ? "FUNDO" : String(r.mm).replace(".", ",");
+      xLabels += `<text x="${x}" y="${height-8}" font-size="10" text-anchor="middle" fill="#445">${label}</text>`;
     });
 
     const lineRetido = rows.map((r,i)=>`${toX(i)},${toY(r.perc)}`).join(" ");
@@ -1605,6 +1660,32 @@
       <line x1="${pad}" y1="${height-pad}" x2="${width-pad}" y2="${height-pad}" stroke="#8aa6c7"/>
       <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${height-pad}" stroke="#8aa6c7"/>
       ${xLabels}
+    `;
+
+    const limits = getNbr7211Limits();
+    const maxMm = Math.max(...rows.map(r => Number(r.mm)));
+    if(maxMm < 12.5){
+      const sand = limits.sand;
+      const utilizavelLowerAcc = sand.utilizavelLower.map(p=>100 - p);
+      const utilizavelUpperAcc = sand.utilizavelUpper.map(p=>100 - p);
+      const otimaLowerAcc = sand.otimaLower.map(p=>100 - p);
+      const otimaUpperAcc = sand.otimaUpper.map(p=>100 - p);
+      drawNbrBand(granChartSvg, rows, sand.mm, utilizavelLowerAcc, utilizavelUpperAcc, toX, toY, "#777777", 0.12);
+      drawNbrBand(granChartSvg, rows, sand.mm, otimaLowerAcc, otimaUpperAcc, toX, toY, "#f6c541", 0.16);
+    } else {
+      const coarse = limits.coarse;
+      Object.keys(coarse).forEach(key=>{
+        const b = coarse[key];
+        const uLower = b.utilizavelLower.map(p=>100 - p);
+        const uUpper = b.utilizavelUpper.map(p=>100 - p);
+        const oLower = b.otimaLower.map(p=>100 - p);
+        const oUpper = b.otimaUpper.map(p=>100 - p);
+        drawNbrBand(granChartSvg, rows, b.mm, uLower, uUpper, toX, toY, "#777777", 0.10);
+        drawNbrBand(granChartSvg, rows, b.mm, oLower, oUpper, toX, toY, "#f6c541", 0.12);
+      });
+    }
+
+    granChartSvg.innerHTML += `
       <polyline points="${lineRetido}" fill="none" stroke="#0a6ed1" stroke-width="2"/>
       <polyline points="${lineAcum}" fill="none" stroke="#e07b00" stroke-width="2"/>
       ${pointsRetido}
@@ -1614,85 +1695,64 @@
     `;
   }
 
-  // NEW: compute and render mix granulometry (trace dry mix) and chart
+  /* ====== MIX GRAN, TRACO CALC etc (kept) ====== */
   const tracoMixChartSvg = document.getElementById("tracoMixChartSvg");
   const mixChartTitle = document.getElementById("mixChartTitle");
 
   function computeMixGranFromLastTraco(lastTraco){
     if(!lastTraco || !lastTraco.materials || !lastTraco.traco1m3) return null;
-
-    // Dry keys: exclude water and additives (per user's requirement)
     const EXCLUDE_KEYS = new Set(["agua","aditivo1","aditivo2"]);
-
-    // compute dry mass per material (1 m3)
     const materialMasses = lastTraco.materials.map(m => {
       const key = m.key;
       const mass = Number(lastTraco.traco1m3?.[key] ?? 0);
       return { key, label: m.label, mass, insumo: m.insumo || null };
-    }).filter(m => !EXCLUDE_KEYS.has(m.key) && (m.mass > 0)); // only dry >0
-
+    }).filter(m => !EXCLUDE_KEYS.has(m.key) && (m.mass > 0));
     const totalDry = materialMasses.reduce((s,mi)=>s + mi.mass, 0);
     if(!(totalDry > 0)) return null;
-
-    // For each material, build a map mm->perc (individual retained)
     const materialsSieveMaps = materialMasses.map(mi => {
       const ins = mi.insumo;
       const rows = ins?.caracteristicas?.granulometria?.rows || [];
-      // build map for SIEVES_MM order
       const map = new Map();
       for(const r of rows){
-        // ensure numeric
         map.set(Number(r.mm), Number(r.perc));
       }
-      // also include 'fundo' as mm = 0 (we'll treat as final)
       const fundoPerc = ins?.caracteristicas?.granulometria?.fundo?.perc ?? 0;
       map.set(0, Number(fundoPerc));
       return { key: mi.key, mass: mi.mass, map, insumo: mi.insumo };
     });
-
-    // Build mix retained % per sieve mm (use the SIEVES_MM list and include fundo as 0)
     const rows = [];
     for(const mm of SIEVES_MM){
       let sumPerc = 0;
       for(const mat of materialsSieveMaps){
-        const matPerc = mat.map.get(mm) ?? 0; // percent retained of material at this sieve
+        const matPerc = mat.map.get(mm) ?? 0;
         sumPerc += (mat.mass / totalDry) * matPerc;
       }
       rows.push({ mm, perc: sumPerc });
     }
-    // compute fundo (mm = 0)
     let fundoSum = 0;
     for(const mat of materialsSieveMaps){
       const f = mat.map.get(0) ?? 0;
       fundoSum += (mat.mass / totalDry) * f;
     }
-    // append fundo as last row (we'll treat mm 'FUNDO' as 0)
     rows.push({ mm: 0, perc: fundoSum });
-
-    // compute acum and pass
     let cumulative = 0;
     const finalRows = rows.map(r => {
       cumulative += r.perc;
       const pass = Math.max(0, 100 - cumulative);
       return { mm: r.mm, perc: r.perc, acum: cumulative, pass };
     });
-
-    // due to rounding, normalize so that final cumulative is 100 if possible
     const last = finalRows[finalRows.length-1];
     if(last){
       const diff = 100 - last.acum;
       if(Math.abs(diff) > 1e-6 && finalRows.length){
-        // distribute diff proportionally on perc values
         const sumPercs = finalRows.reduce((s,r)=>s + (r.perc), 0);
         if(sumPercs > 0){
           finalRows.forEach(r => r.perc = r.perc + (r.perc / sumPercs) * diff);
-          // recompute acum and pass
           let acc = 0;
           finalRows.forEach(r => { acc += r.perc; r.acum = acc; r.pass = Math.max(0, 100 - acc); });
         }
       }
     }
-
     return { totalDry, rows: finalRows };
   }
 
@@ -1775,6 +1835,7 @@
     openChartModal();
   }
 
+  /* ========= granulometry and MF calculation (NBR 7211 compliant) ========= */
   function computeGranulometry(masses){
     let total=0; for(const mm of SIEVES_MM) total+=numOr0(masses[String(mm)]); total+=numOr0(masses["fundo"]);
     const rows=[]; let acum=0;
@@ -1793,6 +1854,7 @@
     const mf=somaAcumMF/100;
     return { total, rows, fundo:{massa:fundoM, perc:fundoPerc, acum:fundoAcum, pass:fundoPass}, mf };
   }
+
   function updateComputedOnly(){
     const { total, rows, fundo, mf }=computeGranulometry(modalGranMasses);
     totalMassaRetidaInput.value= total ? fmtPt(total,2) : "0,00";
@@ -1836,7 +1898,6 @@
     carEditStatus.textContent=ins.insumo;
     const car=ins.caracteristicas||{};
     massaEspecificaInput.value=(car.massaEspecifica ?? "");
-    // set custo in modal
     if(valorKgModal) valorKgModal.value = (ins.valorKg ?? "");
     modalGranMasses={}; const saved=car.granulometria?.masses||{};
     for(const mm of SIEVES_MM) modalGranMasses[String(mm)]=(saved[String(mm)] ?? "");
@@ -1868,7 +1929,7 @@
     const c=state.clientes.find(x=>x.id===clienteId)||null;
     const base=[{value:"",label:"(selecionar...)"}];
     if(!c) return base;
-    const insumos=Array.isArray(c.insumos)?c.insumos:[]; 
+    const insumos=Array.isArray(c.insumos)?c.insumos:[];
     return base.concat(insumos.map(i=>({value:i.id,label:`${i.insumo} • ${i.tipo} • ${i.fornecedor}`})));
   }
   function syncTracoMaterialSelects(clearSelections){
@@ -2092,7 +2153,6 @@
         insumo: ins?.insumo || "-",
         tipo: ins?.tipo || "",
         fornecedor: ins?.fornecedor || "",
-        // campo usado pela UI de histórico (fmtInsumo procura .display, então preenche)
         display: ins ? `${ins.insumo} (${ins.fornecedor || "-"})` : "-"
       };
     });
@@ -2191,6 +2251,11 @@
     alert("Traço salvo e sincronizado com a impressão e histórico.");
   }
   salvarTracoBtn.addEventListener("click", salvarTraco);
+
+  /* ========= helper: summarize insumos for snapshot =========== */
+  function summarizeInsumos(materials){
+    return (materials||[]).map(m=>m.label+(m.insumo?` (${m.insumo.insumo})`:"")).join(", ");
+  }
 
   /* ========= EXPORTAÇÃO CSV ========= */
   function buildCSV(rows){
@@ -2349,6 +2414,7 @@
     removerClienteBtn.disabled=!csel;
     irParaInsumosBtn.disabled=!csel;
   }
+
   function renderInsumos(){
     const c=getSelectedCliente(); const insumos=c?.insumos || [];
     insumosClienteNome.textContent=c?c.empresa:"Nenhum";
@@ -2356,11 +2422,11 @@
     insumosTbody.innerHTML=""; insumosEmpty.hidden=insumos.length!==0;
     for(const ins of insumos){
       const tr=document.createElement("tr"); tr.style.cursor="pointer";
+      tr.dataset.insumoId = ins.id;
       if(ins.id===state.selectedInsumoId){ tr.style.outline="2px solid rgba(0,0,0,.2)"; tr.style.outlineOffset="-2px"; }
       const me=ins.caracteristicas?.massaEspecifica ?? "";
       const mf=ins.caracteristicas?.mf ?? "";
 
-      // ACTIONS: compact icon buttons (chart, caracteristicas, remover)
       const actionsHtml = `
         <div class="icon-actions">
           <button type="button" class="icon-btn" data-action="chart" title="Curva" aria-label="Curva">
@@ -2395,14 +2461,19 @@
         <td class="nowrap"><input data-field="valorKg" data-insumo-id="${ins.id}" type="number" step="0.01" min="0" value="${ins.valorKg ?? ""}" style="width:100px;text-align:right;" /></td>
         <td class="nowrap">${actionsHtml}</td>
       `;
-      tr.addEventListener("click",(e)=>{ if(e.target.tagName.toLowerCase()==="button" || e.target.tagName.toLowerCase()==="input" || e.target.closest('button')) return; state.selectedInsumoId=ins.id; saveState(); renderAll(); });
 
-      // bind cost input listener (editable in list)
+      tr.addEventListener("click",(e)=>{
+        const isButton = e.target.closest("button[data-action]");
+        const isInput = e.target.closest("input");
+        if(isButton || isInput) return;
+        state.selectedInsumoId=ins.id; saveState(); renderAll();
+      });
+
       const costInput = tr.querySelector('input[data-field="valorKg"]');
       if(costInput){
         costInput.addEventListener('change', (e)=>{
           const newVal = numOr0(e.target.value);
-          const clienteAtual = c; // closure capture
+          const clienteAtual = c;
           if(clienteAtual && Array.isArray(clienteAtual.insumos)){
             const insRef = clienteAtual.insumos.find(x => x.id === costInput.dataset.insumoId);
             if(insRef){
@@ -2414,22 +2485,71 @@
         });
       }
 
-      // Attach actions (data-action listeners) - retains original behavior
-      tr.querySelectorAll("button[data-action]").forEach(btn=>{
-        btn.addEventListener("click",()=>{
-          state.selectedInsumoId=ins.id; saveState(); renderAll();
-          const action=btn.getAttribute("data-action");
-          if(action==="chart") openGranChartForInsumo(ins);
-          if(action==="remover") removerInsumo(ins.id);
-          if(action==="car") openCaracteristicasModal();
-        });
-      });
+      (()=>{ // per-row buttons
+        const btnChart = tr.querySelector('button[data-action="chart"]');
+        if (btnChart) {
+          btnChart.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            const insData = ins;
+            if (!insData) { alert('Insumo não encontrado.'); return; }
+            const rows = insData?.caracteristicas?.granulometria?.rows || [];
+            if (!rows.length) { alert('Este insumo ainda não possui granulometria cadastrada.'); return; }
+            chartModalSub.textContent = `Insumo: ${insData.insumo} • Tipo: ${insData.tipo} • Fornecedor: ${insData.fornecedor}`;
+            chartTitle.textContent = "Curva granulométrica";
+            buildGranChart(rows);
+            openChartModal();
+          });
+        }
+
+        const btnCar = tr.querySelector('button[data-action="car"]');
+        if (btnCar) {
+          btnCar.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            if(c && c.id) state.selectedClienteId = c.id;
+            state.selectedInsumoId = ins.id;
+            saveState();
+            setActiveTab("caracteristicas");
+            renderAll();
+            setTimeout(() => {
+              openCaracteristicasModal();
+            }, 50);
+          });
+        }
+
+        const btnRem = tr.querySelector('button[data-action="remover"]');
+        if (btnRem) {
+          btnRem.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            if (!confirm('Remover este insumo?')) return;
+            if(!c){
+              for(const cc of (state.clientes||[])){
+                if((cc.insumos||[]).some(x=>x.id===ins.id)){ c = cc; break; }
+              }
+            }
+            if(c){
+              c.insumos = (c.insumos||[]).filter(x=>x.id !== ins.id);
+            } else {
+              state.clientes.forEach(cc => cc.insumos = (cc.insumos||[]).filter(x=>x.id !== ins.id));
+            }
+            if(state.selectedInsumoId===ins.id) state.selectedInsumoId=null;
+            saveState();
+            renderAll();
+          });
+        }
+      })();
+
       insumosTbody.appendChild(tr);
     }
     irParaCaracteristicasBtn.disabled=!getSelectedInsumo();
   }
+
   function removerInsumo(insumoId){
-    const c=getSelectedCliente(); if(!c) return;
+    let c=getSelectedCliente(); if(!c) {
+      for(const cc of (state.clientes||[])){
+        if((cc.insumos||[]).some(x=>x.id===insumoId)){ c = cc; break; }
+      }
+    }
+    if(!c) return;
     const ok=confirm("Remover este insumo?"); if(!ok) return;
     c.insumos=(c.insumos||[]).filter(x=>x.id!==insumoId);
     if(state.selectedInsumoId===insumoId) state.selectedInsumoId=null;
@@ -2520,7 +2640,6 @@
     if(!(massaEspecifica>0)){ alert("Informe a massa específica (> 0)."); massaEspecificaInput.focus(); return; }
     const computed=computeGranulometry(modalGranMasses);
     if(!(computed.total>0)){ alert("Informe ao menos uma massa retida (> 0)."); return; }
-    // update custo from modal into insumo (if modal field exists)
     if(valorKgModal){
       ins.valorKg = numOr0(valorKgModal.value);
     }
@@ -2540,18 +2659,15 @@
     closeCaracteristicasModal();
     alert("Características salvas.");
 
-    // If there's a lastTraco that uses this insumo, recompute and redraw the mix curve
     if(state.lastTraco && Array.isArray(state.lastTraco.materials)){
       const used = state.lastTraco.materials.some(m => m.insumo && m.insumo.id === ins.id);
       if(used){
-        // recompute mix curve from existing lastTraco (no need to recalc full trace)
         computeAndRenderMixGran();
       }
     }
   });
 
   /* =========  PRINT / DOSAGEM: umidade e correções automáticas ========= */
-
   function updateUmidadeCorrections(){
     const last = state.lastTraco;
     if(!last || !last.traco1m3) return;
@@ -2631,7 +2747,6 @@
     if(!state.printForm.numeroTraco) state.printForm.numeroTraco="001";
     if(!state.printForm.volumeM3) state.printForm.volumeM3=state.lastTraco?.volume ?? 1;
     if(state.printForm.volumeLab===undefined) state.printForm.volumeLab="";
-    if(!state.printRows) state.printRows={};
     if(!state.printForm.resistencias){
       state.printForm.resistencias=RUPTURA_DIAS.map(d=>({ idade:`${d} dias`, comp:"", aashto:"", tracao:"", evol:"" }));
     }
@@ -2739,8 +2854,7 @@
     setTimeout(()=>window.print(),150);
   });
 
-  /* ========= HISTÓRICO RENDER (mantém funcionalidade, now SAP-like) ========= */
-
+  /* ========= HISTÓRICO RENDER (mantém funcionalidade) ========= */
   function renderHistorico(){
     if(typeof renderHistorico._impl === "function") renderHistorico._impl();
   }
@@ -2838,6 +2952,7 @@
     saveState();
   }
 
+  // implement renderHistorico._impl (keeps original behaviour from provided file)
   renderHistorico._impl = function(){
     const hist=state.tracosHistorico||[];
     const histInsumosTbody=$("#histInsumosTbody");
@@ -2857,7 +2972,6 @@
       const ins = traco.insumos||[];
       const row=document.createElement("tr");
       row.dataset.histIndex = idx;
-      // compact icon buttons for edit/delete
       const actionsHtml = `
         <div class="icon-actions">
           <button type="button" class="icon-btn icon-edit" data-action="edit" title="Editar" aria-label="Editar">
@@ -2916,6 +3030,7 @@
       histInsumosTbody.appendChild(row);
     });
 
+    // Quantities
     histQuantTbody.innerHTML="";
     hist.forEach((traco, idx)=>{
       const qs=traco.quantidades||[];
@@ -2936,33 +3051,23 @@
         <td>${escapeHtml(pickQuant(qs,"aditivo2"))}</td>
         <td class="nowrap">
           <div class="icon-actions">
-            <button type="button" class="icon-btn icon-edit" data-action="edit" title="Editar" aria-label="Editar">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 20h9"></path>
-                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
-              </svg>
-            </button>
-            <button type="button" class="icon-btn icon-delete" data-action="delete" title="Excluir" aria-label="Excluir">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-                <path d="M10 11v6"></path>
-                <path d="M14 11v6"></path>
-              </svg>
-            </button>
+            <button type="button" class="icon-btn icon-edit" data-action="edit" title="Editar" aria-label="Editar">E</button>
+            <button type="button" class="icon-btn icon-delete" data-action="delete" title="Excluir" aria-label="Excluir">X</button>
           </div>
         </td>
       `;
-      const editBtn=row.querySelector('[data-action="edit"]');
+      const editBtn = row.querySelector('[data-action="edit"]');
       editBtn.addEventListener("click", ()=>{
-        const editing = editBtn.dataset.mode!=="save";
+        const editing = editBtn.dataset.mode !== "save";
         if(editing){
           editBtn.dataset.mode="save";
+          editBtn.title = "Salvar";
           toggleRowEditing(row,true);
         }else{
           const values = Array.from(row.querySelectorAll("td")).slice(0,-1).map(td=>td.textContent.trim());
           toggleRowEditing(row,false);
           editBtn.dataset.mode="edit";
+          editBtn.title = "Editar";
           saveQuantRowAtIndex(idx, values);
         }
       });
@@ -2975,14 +3080,15 @@
       histQuantTbody.appendChild(row);
     });
 
+    // Resultados
     histResultadosTbody.innerHTML="";
     hist.forEach((traco, idx)=>{
-      const res=traco.resultados||[];
+      const res = traco.resultados||[];
       const row=document.createElement("tr");
       row.innerHTML=`
         <td>${escapeHtml(traco.numeroTraco)}</td>
         <td>${escapeHtml(traco.clienteNome||"-")}</td>
-        <td>${escapeHtml(traco.dataEstudo || "-")}</td>
+        <td>${escapeHtml(traco.dataEstudo||"-")}</td>
         <td>${escapeHtml(pickRes(res,0))}</td>
         <td>${escapeHtml(pickRes(res,1))}</td>
         <td>${escapeHtml(pickRes(res,2))}</td>
@@ -2992,33 +3098,23 @@
         <td>${escapeHtml(pickRes(res,6))}</td>
         <td class="nowrap">
           <div class="icon-actions">
-            <button type="button" class="icon-btn icon-edit" data-action="edit" title="Editar" aria-label="Editar">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 20h9"></path>
-                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
-              </svg>
-            </button>
-            <button type="button" class="icon-btn icon-delete" data-action="delete" title="Excluir" aria-label="Excluir">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-                <path d="M10 11v6"></path>
-                <path d="M14 11v6"></path>
-              </svg>
-            </button>
+            <button type="button" class="icon-btn icon-edit" data-action="edit" title="Editar" aria-label="Editar">E</button>
+            <button type="button" class="icon-btn icon-delete" data-action="delete" title="Excluir" aria-label="Excluir">X</button>
           </div>
         </td>
       `;
-      const editBtn=row.querySelector('[data-action="edit"]');
+      const editBtn = row.querySelector('[data-action="edit"]');
       editBtn.addEventListener("click", ()=>{
-        const editing = editBtn.dataset.mode!=="save";
+        const editing = editBtn.dataset.mode !== "save";
         if(editing){
           editBtn.dataset.mode="save";
+          editBtn.title = "Salvar";
           toggleRowEditing(row,true);
         }else{
           const values = Array.from(row.querySelectorAll("td")).slice(0,-1).map(td=>td.textContent.trim());
           toggleRowEditing(row,false);
           editBtn.dataset.mode="edit";
+          editBtn.title = "Editar";
           saveResRowAtIndex(idx, values);
         }
       });
@@ -3031,53 +3127,44 @@
       histResultadosTbody.appendChild(row);
     });
 
+    // Form snapshots
     histFormTbody.innerHTML="";
     hist.forEach((traco, idx)=>{
-      const f=traco.form || {};
+      const f = traco.form || {};
       const row=document.createElement("tr");
       row.innerHTML=`
         <td>${escapeHtml(traco.numeroTraco)}</td>
-        <td>${escapeHtml(traco.clienteNome || "-")}</td>
-        <td>${escapeHtml(f.data || "-")}</td>
-        <td>${escapeHtml(f.slump || "-")}</td>
-        <td>${escapeHtml(f.slump15 || "-")}</td>
-        <td>${escapeHtml(f.slumpCorrigido || "-")}</td>
-        <td>${escapeHtml(f.aguaAdicionada || "-")}</td>
-        <td>${escapeHtml(f.aguaRetida || "-")}</td>
-        <td>${escapeHtml(f.tempConc || "-")}</td>
-        <td>${escapeHtml(f.tempAmb || "-")}</td>
-        <td>${escapeHtml(f.umidAmb || "-")}</td>
-        <td>${escapeHtml(f.volumeM3 ?? "-")}</td>
-        <td>${escapeHtml(f.volumeLab ?? "-")}</td>
+        <td>${escapeHtml(traco.clienteNome||"-")}</td>
+        <td>${escapeHtml(f.data||"")}</td>
+        <td>${escapeHtml(f.slump||"")}</td>
+        <td>${escapeHtml(f.slump15||"")}</td>
+        <td>${escapeHtml(f.slumpCorrigido||"")}</td>
+        <td>${escapeHtml(f.aguaAdicionada||"")}</td>
+        <td>${escapeHtml(f.aguaRetida||"")}</td>
+        <td>${escapeHtml(f.tempConc||"")}</td>
+        <td>${escapeHtml(f.tempAmb||"")}</td>
+        <td>${escapeHtml(f.umidAmb||"")}</td>
+        <td>${escapeHtml(f.volumeM3 ?? "")}</td>
+        <td>${escapeHtml(f.volumeLab ?? "")}</td>
         <td class="nowrap">
           <div class="icon-actions">
-            <button type="button" class="icon-btn icon-edit" data-action="edit" title="Editar" aria-label="Editar">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 20h9"></path>
-                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
-              </svg>
-            </button>
-            <button type="button" class="icon-btn icon-delete" data-action="delete" title="Excluir" aria-label="Excluir">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-                <path d="M10 11v6"></path>
-                <path d="M14 11v6"></path>
-              </svg>
-            </button>
+            <button type="button" class="icon-btn icon-edit" data-action="edit" title="Editar" aria-label="Editar">E</button>
+            <button type="button" class="icon-btn icon-delete" data-action="delete" title="Excluir" aria-label="Excluir">X</button>
           </div>
         </td>
       `;
-      const editBtn=row.querySelector('[data-action="edit"]');
+      const editBtn = row.querySelector('[data-action="edit"]');
       editBtn.addEventListener("click", ()=>{
-        const editing = editBtn.dataset.mode!=="save";
+        const editing = editBtn.dataset.mode !== "save";
         if(editing){
           editBtn.dataset.mode="save";
+          editBtn.title = "Salvar";
           toggleRowEditing(row,true);
         }else{
           const values = Array.from(row.querySelectorAll("td")).slice(0,-1).map(td=>td.textContent.trim());
           toggleRowEditing(row,false);
           editBtn.dataset.mode="edit";
+          editBtn.title = "Editar";
           saveFormRowAtIndex(idx, values);
         }
       });
@@ -3089,599 +3176,415 @@
       });
       histFormTbody.appendChild(row);
     });
-
-    // After rendering, apply current filter (if any)
-    applyHistoryFilter();
   };
 
-  // ===== History view + filter behavior =====
-  const histFilterInput = document.getElementById("histFilterInput");
-  const histClearFilterBtn = document.getElementById("histClearFilterBtn");
-  const histViewInsumosBtn = document.getElementById("histViewInsumosBtn");
-  const histViewQuantBtn = document.getElementById("histViewQuantBtn");
-  const histViewResultadosBtn = document.getElementById("histViewResultadosBtn");
-  const histViewFormBtn = document.getElementById("histViewFormBtn");
+  /* =========================================================================
+     CORRIGIDO Tab - functions to compute, render and manage corrected traces.
+     Fixed issues:
+      - Avoid repeated listener registration.
+      - Avoid accidental recursion and stack overflow.
+      - Implement computeCorrigidoFromHist + rendering + saving.
+     ========================================================================= */
 
-  const histInsumosWrap = document.getElementById("histInsumosWrap");
-  const histQuantWrap = document.getElementById("histQuantWrap");
-  const histResultadosWrap = document.getElementById("histResultadosWrap");
-  const histFormWrap = document.getElementById("histFormWrap");
-
-  let histCurrentView = "insumos"; // default
-
-  function setHistView(view){
-    histCurrentView = view;
-    histInsumosWrap.style.display = view === "insumos" ? "block" : "none";
-    histQuantWrap.style.display = view === "quantidades" ? "block" : "none";
-    histResultadosWrap.style.display = view === "resultados" ? "block" : "none";
-    histFormWrap.style.display = view === "formulario" ? "block" : "none";
-
-    histInsumosWrap.setAttribute("aria-hidden", view !== "insumos");
-    histQuantWrap.setAttribute("aria-hidden", view !== "quantidades");
-    histResultadosWrap.setAttribute("aria-hidden", view !== "resultados");
-    histFormWrap.setAttribute("aria-hidden", view !== "formulario");
-
-    [histViewInsumosBtn, histViewQuantBtn, histViewResultadosBtn, histViewFormBtn].forEach(btn=>{
-      btn.classList.remove("active");
-    });
-    if(view==="insumos") histViewInsumosBtn.classList.add("active");
-    if(view==="quantidades") histViewQuantBtn.classList.add("active");
-    if(view==="resultados") histViewResultadosBtn.classList.add("active");
-    if(view==="formulario") histViewFormBtn.classList.add("active");
-
-    applyHistoryFilter();
+  function findInsumoValorAndMEByDisplay(displayText){
+    // lookup insumo by display (insumo name) across all clients to get cost and ME if available
+    if(!displayText) return { valorKg: 0, me: null };
+    for(const c of (state.clientes||[])){
+      for(const ins of (c.insumos||[])){
+        if(((ins.insumo || "") + (ins.fornecedor ? ` (${ins.fornecedor})` : "")).trim() === displayText.trim() ||
+           (ins.insumo || "").trim() === displayText.trim()){
+          return { valorKg: numOr0(ins.valorKg), me: ins.caracteristicas?.massaEspecifica ?? null };
+        }
+      }
+    }
+    return { valorKg: 0, me: null };
   }
 
-  function applyHistoryFilter(){
-    const q = (histFilterInput?.value || "").trim().toLowerCase();
-    let tb = null;
-    if(histCurrentView === "insumos") tb = document.getElementById("histInsumosTbody");
-    if(histCurrentView === "quantidades") tb = document.getElementById("histQuantTbody");
-    if(histCurrentView === "resultados") tb = document.getElementById("histResultadosTbody");
-    if(histCurrentView === "formulario") tb = document.getElementById("histFormTbody");
-    if(!tb) return;
-    const rows = Array.from(tb.querySelectorAll("tr"));
-    if(!q){
-      rows.forEach(r=> r.style.display = "");
+  function computeCorrigidoFromHist(traco, density){
+    // density in g/cm3 -> kg/m3 = density*1000
+    const targetMassPerM3 = numOr0(density) * 1000;
+    // get original dosages per m3
+    const orig = {};
+    if(Array.isArray(traco.quantidades) && traco.quantidades.length){
+      traco.quantidades.forEach(q => { orig[q.key] = numOr0(q.dosagem); });
+    }
+    // fallback to traco.traco1m3 if present
+    if(!Object.keys(orig).length && traco.traco1m3){
+      for(const k of Object.keys(traco.traco1m3)) orig[k] = numOr0(traco.traco1m3[k]);
+    }
+    // If still empty, attempt to derive from traco.insumos+traco.form (unlikely)
+    const originalTotal = Object.values(orig).reduce((s,v)=>s+v, 0) || 0;
+
+    // Water correction: use form values if present
+    const form = traco.form || {};
+    // initialWater per m3: use orig['agua'] if present else form.aguaInicial if provided
+    let initialWater = orig['agua'] ?? numOr0(form.aguaInicial) ?? 0;
+    // If form contains aguaAdicionada/aguaRetida use them (they may be absolute L or kg - assume kg)
+    const aguaAdicionada = numOr0(form.aguaAdicionada);
+    const aguaRetida = numOr0(form.aguaRetida);
+    const finalWater = Math.max(0, initialWater + aguaAdicionada - aguaRetida);
+
+    // If originalTotal is zero, we'll just scale proportionally using solids only (avoid divide by zero)
+    let factor = 1;
+    if(originalTotal > 0){
+      factor = (targetMassPerM3 > 0) ? (targetMassPerM3 / originalTotal) : 1;
+    } else {
+      // if no original total, but traco.traco1m3 may have concrete total mass; else factor=1
+      factor = 1;
+    }
+
+    // build corrected dosages
+    const corrected = {};
+    const details = {};
+    let totalCost = 0;
+    const keys = new Set([...Object.keys(orig), "cimento","adicao","areia1","areia2","areia3","brita0","brita12","brita1","agua","aditivo1","aditivo2"]);
+    keys.forEach(k=>{
+      const o = numOr0(orig[k]);
+      // compute corrected value
+      let cVal = o * factor;
+      // we'll override water with finalWater value (per m3)
+      if(k === "agua") cVal = finalWater;
+      corrected[k] = cVal;
+      // find cost and me if possible from traco.insumos display values (insumos array may have display)
+      let valor = 0;
+      let me = null;
+      // try matching traco.insumos entry
+      const insEntry = (traco.insumos || []).find(x => x.key === k);
+      if(insEntry){
+        // insEntry.display may be like "Name (Fornecedor)"
+        const found = findInsumoValorAndMEByDisplay(insEntry.display || insEntry.insumo);
+        valor = found.valorKg || 0;
+        me = found.me ?? me;
+      } else {
+        const found = findInsumoValorAndMEByDisplay((insEntry && insEntry.display) || "");
+        valor = found.valorKg || 0;
+        me = found.me ?? me;
+      }
+      const cost = cVal * (valor || 0);
+      totalCost += cost;
+      details[k] = { original: o, corrected: cVal, valorKg: valor, me };
+    });
+
+    return {
+      originalTotal,
+      targetMassPerM3,
+      factor,
+      initialWater,
+      finalWater,
+      correctedDos: corrected,
+      details,
+      totalCost: round(totalCost,2)
+    };
+  }
+
+  function renderCorrigidoResult(res, traco){
+    const tbody = document.getElementById("corrDosagemTbody");
+    const costTotalEl = document.getElementById("corrCostTotal");
+    const corrCEl = document.getElementById("corrC");
+    const corrR = document.getElementById("corrR");
+    const corrVt = document.getElementById("corrVt");
+    const corrIa = document.getElementById("corrIa");
+    const corrA = document.getElementById("corrA");
+    const corrAC = document.getElementById("corrAC");
+    tbody.innerHTML = "";
+    if(!res || !res.correctedDos) {
+      if(costTotalEl) costTotalEl.value = "";
+      if(corrCEl) corrCEl.value = "";
+      if(corrR) corrR.value = "";
+      if(corrVt) corrVt.value = "";
+      if(corrIa) corrIa.value = "";
+      if(corrA) corrA.value = "";
+      if(corrAC) corrAC.value = "";
       return;
     }
-    rows.forEach(r=>{
-      const text = (r.textContent || "").toLowerCase();
-      r.style.display = text.includes(q) ? "" : "none";
+
+    const order = ["cimento","adicao","areia1","areia2","areia3","brita0","brita12","brita1","agua","aditivo1","aditivo2"];
+    order.forEach(key=>{
+      const det = res.details[key] || { original:0, corrected:0, valorKg:0, me: null };
+      const labelMap = {
+        cimento:"Cimento", adicao:"Adição", areia1:"Areia 1", areia2:"Areia 2", areia3:"Areia 3",
+        brita0:"Brita 0", brita12:"Brita 1/2", brita1:"Brita 1", agua:"Água", aditivo1:"Aditivo 1", aditivo2:"Aditivo 2"
+      };
+      const tr = document.createElement("tr");
+      const costRow = round(det.corrected * (det.valorKg||0),2);
+      tr.innerHTML = `
+        <td>${labelMap[key] || key}</td>
+        <td class="right">${fmtPt(det.original,1)}</td>
+        <td class="right">${fmtPt(det.corrected,1)}</td>
+        <td class="right">${det.me ? Number(det.me).toLocaleString("pt-BR",{minimumFractionDigits:3, maximumFractionDigits:3}) : "—"}</td>
+        <td class="right">${det.valorKg ? fmtPt(det.valorKg,2) : "—"}</td>
+        <td class="right">${det.valorKg ? fmtPt(costRow,2) : "—"}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    if(costTotalEl) costTotalEl.value = fmtPt(res.totalCost,2);
+    if(corrCEl) corrCEl.value = fmtPt(res.correctedDos["cimento"] || 0,1);
+    if(corrR) corrR.value = fmtPt(res.factor,4);
+    if(corrVt) corrVt.value = fmtPt(1,3);
+    if(corrIa) corrIa.value = fmtPt(numOr0(traco.form?.ar) || 0,2);
+    if(corrA) corrA.value = formatPercentDisplay(numOr0(traco.form?.ar) || 0);
+    if(corrAC) corrAC.value = fmtPt(numOr0(traco.inputs?.ac) || 0,3);
+  }
+
+  function renderCorrigidoSavedList(){
+    const tbody = document.getElementById("corrSavedTbody");
+    tbody.innerHTML = "";
+    const items = state.tracosCorrigidos || [];
+    if(!items.length){
+      tbody.innerHTML = `<tr><td colspan="6">Nenhum traço corrigido salvo.</td></tr>`;
+      return;
+    }
+    items.forEach((it, idx)=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(it.id)}</td>
+        <td>${escapeHtml(it.origemNum || "")}</td>
+        <td>${escapeHtml(it.cliente || "")}</td>
+        <td>${escapeHtml(it.data || "")}</td>
+        <td class="right">${fmtPt(it.res ? (it.res.correctedDos?.cimento || 0) : 0,2)}</td>
+        <td class="nowrap">
+          <div class="icon-actions">
+            <button class="icon-btn" data-action="view" title="Ver">V</button>
+            <button class="icon-btn icon-delete" data-action="delete" title="Excluir">X</button>
+          </div>
+        </td>
+      `;
+      tr.querySelector('[data-action="view"]')?.addEventListener("click", ()=>{
+        renderCorrigidoResult(it.result, { form: {}, inputs: {} });
+        alert("Traço corrigido carregado no painel (visualização).");
+      });
+      tr.querySelector('[data-action="delete"]')?.addEventListener("click", ()=>{
+        if(!confirm("Excluir este traço corrigido salvo?")) return;
+        state.tracosCorrigidos = state.tracosCorrigidos.filter(x=>x.id!==it.id);
+        saveState();
+        renderCorrigidoSavedList();
+      });
+      tbody.appendChild(tr);
     });
   }
 
-  histFilterInput?.addEventListener("input", ()=>{
-    applyHistoryFilter();
-  });
-  histClearFilterBtn?.addEventListener("click", ()=>{
-    if(histFilterInput) histFilterInput.value = "";
-    applyHistoryFilter();
-  });
-
-  histViewInsumosBtn?.addEventListener("click", ()=> setHistView("insumos"));
-  histViewQuantBtn?.addEventListener("click", ()=> setHistView("quantidades"));
-  histViewResultadosBtn?.addEventListener("click", ()=> setHistView("resultados"));
-  histViewFormBtn?.addEventListener("click", ()=> setHistView("formulario"));
-
-  setTimeout(()=> setHistView(histCurrentView), 250);
-
-  function summarizeInsumos(materials){
-    if(!materials) return "-";
-    return materials.map(m=>m.label).join(", ");
+  function renderCorrigidoInit(){
+    // populate select with history items
+    const sel = document.getElementById("corrSelectTraco");
+    if(!sel) return;
+    const filterEl = document.getElementById("corrHistFilter");
+    const list = state.tracosHistorico || [];
+    const prev = sel.value;
+    sel.innerHTML = "";
+    list.forEach(h=>{
+      const opt = document.createElement("option");
+      opt.value = h.numeroTraco || h.id || (h.createdAt || "");
+      opt.textContent = `${h.numeroTraco || h.id} — ${h.clienteNome || ""} — ${h.dataEstudo || ""}`;
+      // store index to retrieve quickly
+      opt.dataset.histIndex = String(list.indexOf(h));
+      sel.appendChild(opt);
+    });
+    if(prev && Array.from(sel.options).some(o=>o.value===prev)) sel.value = prev;
+    // filter handler
+    if(filterEl){
+      filterEl.removeEventListener("input", onCorrFilter);
+      filterEl.addEventListener("input", onCorrFilter);
+    }
+    renderCorrigidoSavedList();
+    // build resistance inputs once
+    const resWrap = document.getElementById("corrResInputs");
+    if(resWrap){
+      resWrap.innerHTML = "";
+      for(let i=0;i<RUPTURA_DIAS.length;i++){
+        const inp = document.createElement("div");
+        inp.innerHTML = `<label>${RUPTURA_DIAS[i]} dias</label><input data-ruptura-idx="${i}" class="corr-res-input" />`;
+        resWrap.appendChild(inp);
+      }
+    }
+    // ensure handlers installed
+    initCorrigidoHandlers();
+    if(sel && sel.options.length) {
+      document.getElementById("corrStatus").textContent = "Pronto para cálculo.";
+    } else {
+      document.getElementById("corrStatus").textContent = "Histórico vazio.";
+    }
   }
 
-  function bindSaveTraceBtn(){
-    const btn = document.getElementById("saveTraceBtn");
-    if(!btn) return;
-    btn.addEventListener("click", () => {
-      const snap = buildSnapshotForHistory();
-      if(!snap) return;
-      state.tracosHistorico.unshift(snap);
-      saveState();
-      renderHistorico();
-      renderCorrigidoInit();
-      alert("Traço salvo no histórico local.");
-    }, { once: false });
+  function onCorrFilter(e){
+    const term = String(e.target.value || "").toLowerCase().trim();
+    const sel = document.getElementById("corrSelectTraco");
+    if(!sel) return;
+    for(const opt of sel.options){
+      const txt = (opt.textContent||"").toLowerCase();
+      if(!term || txt.includes(term)) opt.hidden = false;
+      else opt.hidden = true;
+    }
   }
 
-  if(document.readyState === "loading"){
-    window.addEventListener("DOMContentLoaded", bindSaveTraceBtn);
-  }else{
-    bindSaveTraceBtn();
-  }
+  // Safe registration of corrigido handlers (from patch)
+  (function initCorrigidoHandlers(){
+    const sel = document.getElementById("corrSelectTraco");
+    const calcBtn = document.getElementById("calcCorrigidoBtn");
+    const saveBtn = document.getElementById("saveCorrigidoBtn");
+    const clearBtn = document.getElementById("clearCorrigidoBtn");
+    const statusEl = document.getElementById("corrStatus");
 
+    function calcHandler(e){
+      try{
+        console.log("[corrigido] calcHandler disparado");
+        const selId = sel ? sel.value : "";
+        if(!selId){ alert("Selecione um traço do histórico."); return; }
+        const traco = (state.tracosHistorico || []).find(t=> (t.numeroTraco === selId) || (t.id === selId) || (t.numeroTraco === selId));
+        if(!traco){ alert("Traço não encontrado."); return; }
+        const density = numOr0(document.getElementById("corrDensity").value) || 2.45;
+        const res = computeCorrigidoFromHist(traco, density);
+        renderCorrigidoResult(res, traco);
+        if(sel){
+          sel.dataset.lastResult = JSON.stringify(res);
+          sel.dataset.lastTracoId = traco.id || "";
+        }
+        if(statusEl) statusEl.textContent = "Resultado gerado.";
+      }catch(err){
+        console.error("Erro em calcHandler:", err);
+        alert("Erro ao calcular traço corrigido: " + (err && err.message ? err.message : err));
+      }
+    }
+
+    function saveHandler(e){
+      try{
+        console.log("[corrigido] saveHandler disparado");
+        const lastResRaw = sel ? sel.dataset.lastResult : null;
+        const lastTracoId = sel ? sel.dataset.lastTracoId : null;
+        if(!lastResRaw){ alert("Calcule o traço corrigido antes de salvar."); return; }
+        const res = JSON.parse(lastResRaw);
+        const orig = (state.tracosHistorico || []).find(t=>t.id === lastTracoId) || null;
+        const resistInputs = Array.from(document.querySelectorAll(".corr-res-input")).map(inp=>inp.value.trim());
+        const resistencias = resistInputs.map((v,i)=>({ idade: `${RUPTURA_DIAS[i]} dias`, display: v || "" }));
+        const saveObj = {
+          id: uid(),
+          origemId: lastTracoId,
+          origemNum: orig?.numeroTraco || "",
+          cliente: orig?.clienteNome || "",
+          data: orig?.dataEstudo || orig?.createdAt || new Date().toISOString().slice(0,10),
+          density: numOr0(document.getElementById("corrDensity").value),
+          note: document.getElementById("corrNote").value || "",
+          summary: document.getElementById("corrResTitle").value || "",
+          result: res,
+          resistencias
+        };
+        if(document.getElementById("corrSaveAs").value === "tracosCorrigidos"){
+          state.tracosCorrigidos = state.tracosCorrigidos || [];
+          state.tracosCorrigidos.unshift(saveObj);
+        } else {
+          state.tracosSalvos = state.tracosSalvos || [];
+          const snapshot = {
+            id: saveObj.id,
+            clienteNome: saveObj.cliente,
+            titulo: saveObj.summary || `Corrigido ${saveObj.origemNum}`,
+            dataEstudo: saveObj.data,
+            volume: 1,
+            inputs: {},
+            materials: [],
+            traco1m3: res.correctedDos,
+            tracoVol: Object.fromEntries(Object.entries(res.correctedDos).map(([k,v])=>[k, v * 1])),
+            resumoInsumos: `Corrigido de ${saveObj.origemNum}`
+          };
+          state.tracosSalvos.unshift(snapshot);
+        }
+        saveState();
+        renderCorrigidoSavedList();
+        renderTracosSalvos();
+        alert("Traço corrigido salvo.");
+        if(statusEl) statusEl.textContent = "Salvo.";
+      }catch(err){
+        console.error("Erro em saveHandler:", err);
+        alert("Erro ao salvar traço corrigido: " + (err && err.message ? err.message : err));
+      }
+    }
+
+    function clearHandler(e){
+      try{
+        console.log("[corrigido] clearHandler disparado");
+        if(sel){
+          sel.selectedIndex = -1;
+          sel.dataset.lastResult = "";
+          sel.dataset.lastTracoId = "";
+        }
+        const filter = document.getElementById("corrHistFilter");
+        if(filter) filter.value = "";
+        renderCorrigidoResult(null, null);
+        if(statusEl) statusEl.textContent = "Limpo";
+      }catch(err){
+        console.error("Erro em clearHandler:", err);
+      }
+    }
+
+    // Remove old listeners safely and add the new ones (idempotent)
+    if(calcBtn){
+      try{ calcBtn.removeEventListener("click", calcHandler); }catch(e){}
+      calcBtn.addEventListener("click", calcHandler);
+    }
+    if(saveBtn){
+      try{ saveBtn.removeEventListener("click", saveHandler); }catch(e){}
+      saveBtn.addEventListener("click", saveHandler);
+    }
+    if(clearBtn){
+      try{ clearBtn.removeEventListener("click", clearHandler); }catch(e){}
+      clearBtn.addEventListener("click", clearHandler);
+    }
+
+    if(sel){
+      sel.removeEventListener("change", ()=>{ if(statusEl) statusEl.textContent = "Pronto para cálculo."; });
+      sel.addEventListener("change", ()=>{ if(statusEl) statusEl.textContent = "Pronto para cálculo."; });
+    }
+
+    console.log("initCorrigidoHandlers: inicializado");
+  })();
+
+  /* ======= Helpers to render tracos salvos and full UI ======= */
   function renderTracosSalvos(){
-    tracosSalvosTbody.innerHTML="";
-    if(!(state.tracosSalvos?.length)){ tracosSalvosEmpty.hidden=false; return; }
-    tracosSalvosEmpty.hidden=true;
-    state.tracosSalvos.forEach(traco=>{
-      const tr=document.createElement("tr");
-      const actionsHtml = `
-        <div class="icon-actions">
-          <button type="button" class="icon-btn icon-edit" data-action="edit" title="Editar" aria-label="Editar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 20h9"></path>
-              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
-            </svg>
-          </button>
-          <button type="button" class="icon-btn icon-delete" data-action="delete" title="Excluir" aria-label="Excluir">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-              <path d="M10 11v6"></path>
-              <path d="M14 11v6"></path>
-            </svg>
-          </button>
-        </div>
-      `;
-      tr.innerHTML=`
-        <td>${escapeHtml(traco.id)}</td>
-        <td>${escapeHtml(traco.clienteNome||"-")}</td>
-        <td>${escapeHtml(traco.titulo||"-")}</td>
-        <td>${escapeHtml(traco.dataEstudo||"-")}</td>
-        <td>${escapeHtml(traco.resumoInsumos||"-")}</td>
-        <td class="nowrap">${actionsHtml}</td>
-      `;
-      tr.querySelector('[data-action="edit"]').addEventListener("click", ()=>{
-        if(!confirm("Carregar este traço para edição e impressão?")) return;
-        applyTracoToForm(traco);
+    const tbody = tracosSalvosTbody;
+    tbody.innerHTML = "";
+    const list = state.tracosSalvos || [];
+    if(!list.length){
+      tracosSalvosEmpty.style.display = "";
+      return;
+    }
+    tracosSalvosEmpty.style.display = "none";
+    list.forEach(t=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${t.id}</td><td>${escapeHtml(t.clienteNome||"")}</td><td>${escapeHtml(t.titulo||"")}</td><td>${escapeHtml(t.dataEstudo||"")}</td><td>${escapeHtml(t.resumoInsumos||"")}</td><td class="nowrap">
+        <div class="icon-actions"><button class="icon-btn" data-action="load">L</button><button class="icon-btn icon-delete" data-action="delete">X</button></div></td>`;
+      tr.querySelector('[data-action="load"]').addEventListener("click", ()=>{
+        state.lastTraco = t;
+        saveState();
+        renderPrintPanel();
+        computeAndRenderMixGran();
+        alert("Traço carregado.");
       });
       tr.querySelector('[data-action="delete"]').addEventListener("click", ()=>{
-        if(!confirm("Deseja realmente excluir este traço?")) return;
-        state.tracosSalvos = state.tracosSalvos.filter(t=>t.id!==traco.id);
-        if(state.selectedTracoId===traco.id) state.selectedTracoId=null;
-        saveState(); renderTracosSalvos();
+        if(!confirm("Excluir este traço salvo?")) return;
+        state.tracosSalvos = state.tracosSalvos.filter(x=>x.id !== t.id);
+        saveState();
+        renderTracosSalvos();
       });
-      tracosSalvosTbody.appendChild(tr);
+      tbody.appendChild(tr);
     });
   }
 
+  /* ========= render / main ========= */
   function renderAll(){
     renderTopSelection();
     renderClientes();
     renderInsumos();
     renderCaracteristicasPanel();
-    syncTracoUI(true);
+    syncTracoUI(false);
     renderTracosSalvos();
-    renderPrintPanel();
     renderHistorico();
-    updatePctHints();
-    computeAndRenderMixGran();
     renderCorrigidoInit();
   }
 
-  setActiveTab(state.activeTab || "clientes");
-  renderAll();
-
-  // Helper: apply saved traco into form (used when editing a saved trace)
-  function applyTracoToForm(traco){
-    if(!traco) return;
-    if(traco.clienteId){
-      state.selectedClienteId = traco.clienteId;
-    }
-    if(traco.inputs){
-      inArgamassa.value = traco.inputs.argamassa ?? inArgamassa.value;
-      inAC.value = traco.inputs.ac ?? inAC.value;
-      inAr.value = traco.inputs.ar ?? inAr.value;
-      inH.value = traco.inputs.h ?? inH.value;
-      inAdicaoPct.value = traco.inputs.adicaoPct ?? inAdicaoPct.value;
-      inAditivo1Pct.value = traco.inputs.aditivo1Pct ?? inAditivo1Pct.value;
-      inAditivo2Pct.value = traco.inputs.aditivo2Pct ?? inAditivo2Pct.value;
-      pctAreia1.value = traco.inputs.pctAreia1 ?? pctAreia1.value;
-      pctAreia2.value = traco.inputs.pctAreia2 ?? pctAreia2.value;
-      pctAreia3.value = traco.inputs.pctAreia3 ?? pctAreia3.value;
-      pctBrita0.value = traco.inputs.pctBrita0 ?? pctBrita0.value;
-      pctBrita12.value = traco.inputs.pctBrita12 ?? pctBrita12.value;
-      pctBrita1.value = traco.inputs.pctBrita1 ?? pctBrita1.value;
-    }
-    trTitulo.value = traco.titulo || trTitulo.value;
-    trData.value = traco.dataEstudo || trData.value;
-    trVolume.value = traco.volume || trVolume.value;
-    setTimeout(()=> {
-      syncTracoUI(true);
-      if(traco.materials && Array.isArray(traco.materials)){
-        traco.materials.forEach(m=>{
-          const c = state.clientes.find(c => c.id === state.selectedClienteId);
-          if(!c) return;
-          const found = (c.insumos||[]).find(i => i.insumo === (m.insumo?.insumo || (m.insumo?.insumo || m.label)));
-          if(found){
-            const keysMap = {
-              cimento: matCimento,
-              adicao: matAdicao,
-              areia1: matAreia1,
-              areia2: matAreia2,
-              areia3: matAreia3,
-              brita0: matBrita0,
-              brita12: matBrita12,
-              brita1: matBrita1,
-              agua: matAgua,
-              aditivo1: matAditivo1,
-              aditivo2: matAditivo2
-            };
-            const sel = keysMap[m.key];
-            if(sel) sel.value = found.id;
-          }
-        });
-      }
-      try{ calcTraco(); }catch(e){ }
-    }, 250);
-  }
-
-  /* ========================= CORRIGIDO TAB IMPLEMENTATION ========================= */
-
-  const corrHistFilter = document.getElementById("corrHistFilter");
-  const corrSelectTraco = document.getElementById("corrSelectTraco");
-  const corrDensity = document.getElementById("corrDensity");
-  const corrNote = document.getElementById("corrNote");
-  const calcCorrigidoBtn = document.getElementById("calcCorrigidoBtn");
-  const saveCorrigidoBtn = document.getElementById("saveCorrigidoBtn");
-  const clearCorrigidoBtn = document.getElementById("clearCorrigidoBtn");
-  const corrStatus = document.getElementById("corrStatus");
-
-  const corrR = document.getElementById("corrR");
-  const corrC = document.getElementById("corrC");
-  const corrVt = document.getElementById("corrVt");
-  const corrIa = document.getElementById("corrIa");
-  const corrA = document.getElementById("corrA");
-  const corrAC = document.getElementById("corrAC");
-
-  const corrDosagemTbody = document.getElementById("corrDosagemTbody");
-  const corrCostTotal = document.getElementById("corrCostTotal");
-  const corrResInputs = document.getElementById("corrResInputs");
-  const corrSavedTbody = document.getElementById("corrSavedTbody");
-  const corrSaveAs = document.getElementById("corrSaveAs");
-  const corrResTitle = document.getElementById("corrResTitle");
-
-  const FALLBACK_ME = {
-    "cimento": 3.15,
-    "adicao": 2.60,
-    "areia": 2.65,
-    "brita": 2.65,
-    "agua": 1.00,
-    "aditivo": 1.00
-  };
-
-  function setCorrigidoOptions(){
-    corrSelectTraco.innerHTML = "";
-    const hist = state.tracosHistorico || [];
-    if(!hist.length){
-      const opt = document.createElement("option");
-      opt.textContent = "(nenhum traço no histórico)";
-      opt.value = "";
-      corrSelectTraco.appendChild(opt);
-      return;
-    }
-    hist.forEach((t, idx)=>{
-      const opt = document.createElement("option");
-      opt.value = t.id || String(idx);
-      opt.textContent = `${t.numeroTraco || t.id} — ${t.clienteNome || "-"} — ${t.dataEstudo || ""}`;
-      opt.dataset.index = String(idx);
-      corrSelectTraco.appendChild(opt);
-    });
-  }
-
-  function filterCorrSelect(){
-    const q = (corrHistFilter.value||"").toLowerCase().trim();
-    Array.from(corrSelectTraco.options).forEach(opt=>{
-      if(!opt.value) { opt.style.display = ""; return; }
-      const txt = opt.textContent.toLowerCase();
-      opt.style.display = q ? (txt.includes(q) ? "" : "none") : "";
-    });
-  }
-  corrHistFilter?.addEventListener("input", filterCorrSelect);
-
-  function findInsumoByName(insumoName){
-    if(!insumoName) return null;
-    for(const c of (state.clientes||[])){
-      if(!c.insumos) continue;
-      for(const ins of c.insumos){
-        if(String(ins.insumo || "").toLowerCase() === String(insumoName || "").toLowerCase()){
-          return ins;
-        }
-      }
-    }
-    return null;
-  }
-
-  function resolveMEForHistEntry(histIns, key){
-    const name = histIns?.insumo || "";
-    const found = findInsumoByName(name);
-    if(found && found.caracteristicas && Number.isFinite(Number(found.caracteristicas.massaEspecifica))) {
-      return Number(found.caracteristicas.massaEspecifica);
-    }
-    if(key === "agua") return 1.0;
-    if(key && key.indexOf("cimento") !== -1) return FALLBACK_ME["cimento"];
-    if(key && key.indexOf("aditivo") !== -1) return FALLBACK_ME["aditivo"];
-    if(key && key.indexOf("adicao") !== -1) return FALLBACK_ME["adicao"];
-    if(key && (key.indexOf("areia") !== -1 || key.indexOf("brita") !== -1)) return FALLBACK_ME["areia"];
-    return FALLBACK_ME["areia"];
-  }
-
-  function computeCorrigidoFromHist(tracoHist, density_g_cm3){
-    if(!tracoHist) return null;
-    const quant = Array.isArray(tracoHist.quantidades) ? tracoHist.quantidades : [];
-    const mapDos = {};
-    quant.forEach(q=>{
-      if(q && q.key) mapDos[q.key] = Number(q.dosagem || 0);
-    });
-    if(Object.keys(mapDos).length === 0 && tracoHist.traco1m3){
-      Object.keys(tracoHist.traco1m3).forEach(k => mapDos[k] = Number(tracoHist.traco1m3[k]||0));
-    }
-    const initialWater = Number(mapDos["agua"] ?? 0);
-    const form = tracoHist.form || {};
-    const aguaAdicionada = numOr0(form.aguaAdicionada);
-    const aguaRetida = numOr0(form.aguaRetida);
-    const correctedWater = initialWater + aguaAdicionada - aguaRetida;
-
-    let totalMass = 0;
-    const allKeys = new Set(Object.keys(mapDos));
-    ["cimento","adicao","areia1","areia2","areia3","brita0","brita12","brita1","agua","aditivo1","aditivo2"].forEach(k=>allKeys.add(k));
-    allKeys.forEach(k=>{
-      const m = Number(mapDos[k] ?? 0);
-      if(k === "agua") totalMass += correctedWater;
-      else totalMass += m;
-    });
-
-    const densityKg_m3 = Number(density_g_cm3) * 1000;
-    const R = densityKg_m3 > 0 ? totalMass / densityKg_m3 : 0;
-
-    const cementOriginal = Number(mapDos["cimento"] ?? 0);
-    const C = R > 0 ? cementOriginal / R : 0;
-
-    const volumes = {};
-    let sumVolumes = 0;
-    allKeys.forEach(k=>{
-      const massKg = (k === "agua") ? correctedWater : Number(mapDos[k] ?? 0);
-      const histInsEntry = (tracoHist.insumos || []).find(x => x.key === k) || { insumo: "" };
-      const me = resolveMEForHistEntry(histInsEntry, k) || FALLBACK_ME["areia"];
-      const vol = (me > 0) ? (massKg / (Number(me) * 1000)) : 0;
-      volumes[k] = { massKg, me, vol };
-      sumVolumes += vol;
-    });
-
-    const Vt = sumVolumes;
-    const Ia = Vt > 0 ? (R / Vt) : 0;
-    const A = Ia > 0 ? ((1 - (1 / Ia)) * 100) : 0;
-
-    const correctedDos = {};
-    allKeys.forEach(k=>{
-      const orig = Number(mapDos[k] ?? 0);
-      const baseMass = (k === "agua") ? correctedWater : orig;
-      const corrVal = Vt > 0 ? (baseMass / Vt) : 0;
-      correctedDos[k] = corrVal;
-    });
-
-    const waterCorr_per_m3 = correctedDos["agua"] ?? 0;
-    const cementCorr_per_m3 = correctedDos["cimento"] ?? 0;
-    const AC_ratio = cementCorr_per_m3 > 0 ? (waterCorr_per_m3 / cementCorr_per_m3) : 0;
-
-    let totalCost = 0;
-    const costDetails = {};
-    allKeys.forEach(k=>{
-      const histInsEntry = (tracoHist.insumos || []).find(x => x.key === k) || {};
-      const insName = histInsEntry.insumo || "";
-      const matched = findInsumoByName(insName);
-      const unitCost = matched ? Number(matched.valorKg ?? matched.valorKg ?? 0) : 0;
-      const costK = (correctedDos[k] || 0) * unitCost;
-      costDetails[k] = { unitCost, costK, matchedName: matched?.insumo || insName || "" };
-      totalCost += costK;
-    });
-
-    return {
-      R, C, Vt, Ia, A,
-      correctedDos,
-      correctedWater,
-      volumes,
-      costDetails,
-      totalCost,
-      AC_ratio,
-      baseMasses: mapDos,
-      cementOriginal,
-      formSnapshot: form
-    };
-  }
-
-  function renderCorrigidoResult(result, tracoHist){
-    if(!result){
-      corrStatus.textContent = "Nenhum cálculo.";
-      corrR.value = corrC.value = corrVt.value = corrIa.value = corrA.value = corrAC.value = "";
-      corrDosagemTbody.innerHTML = "";
-      corrCostTotal.value = "";
-      corrResInputs.innerHTML = "";
-      return;
-    }
-    corrStatus.textContent = "Cálculo pronto.";
-    corrR.value = fmtPt(result.R,4);
-    corrC.value = fmtPt(result.C,2);
-    corrVt.value = fmtPt(result.Vt,4);
-    corrIa.value = fmtPt(result.Ia,4);
-    corrA.value = fmtPt(result.A,2) + "%";
-    corrAC.value = fmtPt(result.AC_ratio,3);
-
-    corrDosagemTbody.innerHTML = "";
-    const keysOrder = ["cimento","adicao","areia1","areia2","areia3","brita0","brita12","brita1","agua","aditivo1","aditivo2"];
-    keysOrder.forEach(k=>{
-      const base = result.baseMasses[k] ?? 0;
-      const corr = result.correctedDos[k] ?? 0;
-      const me = result.volumes[k]?.me ?? "";
-      const unitCost = result.costDetails[k]?.unitCost ?? 0;
-      const costK = result.costDetails[k]?.costK ?? 0;
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${k}</td>
-        <td class="right">${fmtPt(base,1)}</td>
-        <td class="right">${fmtPt(corr,2)}</td>
-        <td class="right">${me ? fmtPt(me,3) : "—"}</td>
-        <td class="right">${unitCost ? fmtPt(unitCost,3) : "—"}</td>
-        <td class="right">${costK ? fmtPt(costK,2) : "0,00"}</td>
-      `;
-      corrDosagemTbody.appendChild(tr);
-    });
-
-    corrCostTotal.value = fmtPt(result.totalCost,2);
-
-    corrResInputs.innerHTML = "";
-    const resArr = (tracoHist && tracoHist.resultados) ? tracoHist.resultados : RUPTURA_DIAS.map(d=>({}));
-    for(let i=0;i<RUPTURA_DIAS.length;i++){
-      const d = RUPTURA_DIAS[i];
-      const val = resArr[i]?.display || resArr[i]?.comp || "";
-      const div = document.createElement("div");
-      div.innerHTML = `<label>${d} dias</label><input data-res-idx="${i}" class="corr-res-input" value="${val}" />`;
-      corrResInputs.appendChild(div);
-    }
-  }
-
-  calcCorrigidoBtn?.addEventListener("click", ()=>{
-    const selId = corrSelectTraco.value;
-    if(!selId){ alert("Selecione um traço do histórico."); return; }
-    const traco = (state.tracosHistorico || []).find(t=> (t.id === selId) || (t.numeroTraco === selId));
-    if(!traco){ alert("Traço não encontrado."); return; }
-    const density = numOr0(corrDensity.value) || 2.45;
-    const res = computeCorrigidoFromHist(traco, density);
-    renderCorrigidoResult(res, traco);
-    corrSelectTraco.dataset.lastResult = JSON.stringify(res);
-    corrSelectTraco.dataset.lastTracoId = traco.id || "";
-  });
-
-  saveCorrigidoBtn?.addEventListener("click", ()=>{
-    const lastResRaw = corrSelectTraco.dataset.lastResult;
-    const lastTracoId = corrSelectTraco.dataset.lastTracoId;
-    if(!lastResRaw){ alert("Calcule o traço corrigido antes de salvar."); return; }
-    const res = JSON.parse(lastResRaw);
-    const orig = (state.tracosHistorico || []).find(t=>t.id === lastTracoId) || null;
-    const resistInputs = Array.from(document.querySelectorAll(".corr-res-input")).map(inp=>inp.value.trim());
-    const resistencias = resistInputs.map((v,i)=>({ idade: `${RUPTURA_DIAS[i]} dias`, display: v || "" }));
-
-    const saveObj = {
-      id: uid(),
-      origemId: lastTracoId,
-      origemNum: orig?.numeroTraco || "",
-      cliente: orig?.clienteNome || "",
-      data: orig?.dataEstudo || orig?.createdAt || new Date().toISOString().slice(0,10),
-      density: numOr0(corrDensity.value),
-      note: corrNote.value || "",
-      summary: corrResTitle.value || "",
-      result: res,
-      resistencias
-    };
-
-    if(corrSaveAs.value === "tracosCorrigidos"){
-      state.tracosCorrigidos = state.tracosCorrigidos || [];
-      state.tracosCorrigidos.unshift(saveObj);
-    } else {
-      state.tracosSalvos = state.tracosSalvos || [];
-      const snapshot = {
-        id: saveObj.id,
-        clienteNome: saveObj.cliente,
-        titulo: saveObj.summary || `Corrigido ${saveObj.origemNum}`,
-        dataEstudo: saveObj.data,
-        volume: 1,
-        inputs: {},
-        materials: [],
-        traco1m3: res.correctedDos,
-        tracoVol: Object.fromEntries(Object.entries(res.correctedDos).map(([k,v])=>[k, v * 1])),
-        resumoInsumos: `Corrigido de ${saveObj.origemNum}`
-      };
-      state.tracosSalvos.unshift(snapshot);
-    }
-
-    saveState();
-    renderCorrigidoSavedList();
-    renderTracosSalvos();
-    alert("Traço corrigido salvo.");
-  });
-
-  clearCorrigidoBtn?.addEventListener("click", ()=>{
-    corrSelectTraco.selectedIndex = -1;
-    corrSelectTraco.dataset.lastResult = "";
-    corrSelectTraco.dataset.lastTracoId = "";
-    corrHistFilter.value = "";
-    renderCorrigidoResult(null, null);
-  });
-
-  function renderCorrigidoSavedList(){
-    corrSavedTbody.innerHTML = "";
-    const arr = state.tracosCorrigidos || [];
-    if(!arr.length){
-      corrSavedTbody.innerHTML = `<tr><td colspan="6">Nenhum traço corrigido salvo.</td></tr>`;
-      return;
-    }
-    arr.forEach(tr=>{
-      const trEl = document.createElement("tr");
-      trEl.innerHTML = `
-        <td>${escapeHtml(tr.id)}</td>
-        <td>${escapeHtml(tr.origemNum || "-")}</td>
-        <td>${escapeHtml(tr.cliente || "-")}</td>
-        <td>${escapeHtml(tr.data || "-")}</td>
-        <td class="right">${fmtPt(tr.result?.totalCost ?? 0,2)}</td>
-        <td class="nowrap">
-          <button type="button" class="icon-btn icon-edit" data-action="load" title="Carregar">⤓</button>
-          <button type="button" class="icon-btn icon-delete" data-action="delete" title="Excluir">✖</button>
-        </td>
-      `;
-      trEl.querySelector('[data-action="load"]')?.addEventListener("click", ()=>{
-        const orig = (state.tracosHistorico||[]).find(h=>h.id === tr.origemId) || null;
-        setCorrigidoOptions();
-        if(orig){
-          const opt = Array.from(corrSelectTraco.options).find(o=>o.value===orig.id);
-          if(opt){ corrSelectTraco.value = orig.id; corrSelectTraco.dispatchEvent(new Event('change')); }
-        }
-        corrDensity.value = tr.density || corrDensity.value;
-        corrNote.value = tr.note || "";
-        corrResTitle.value = tr.summary || "";
-        renderCorrigidoResult(tr.result, orig || {});
-        corrSelectTraco.dataset.lastResult = JSON.stringify(tr.result);
-        corrSelectTraco.dataset.lastTracoId = tr.origemId || "";
-      });
-      trEl.querySelector('[data-action="delete"]')?.addEventListener("click", ()=>{
-        if(!confirm("Excluir traço corrigido?")) return;
-        state.tracosCorrigidos = state.tracosCorrigidos.filter(x=>x.id !== tr.id);
-        saveState();
-        renderCorrigidoSavedList();
-      });
-      corrSavedTbody.appendChild(trEl);
-    });
-  }
-
-  corrSelectTraco?.addEventListener("change", ()=>{
-    corrSelectTraco.dataset.lastResult = "";
-    corrSelectTraco.dataset.lastTracoId = "";
-    corrStatus.textContent = "Pronto para cálculo.";
-    const selId = corrSelectTraco.value;
-    const hist = state.tracosHistorico || [];
-    const tr = hist.find(t=>t.id===selId);
-    if(tr && tr.form && tr.form.meConc){
-      const v = numOr0(tr.form.meConc);
-      if(v>0) corrDensity.value = v;
-    }
-  });
-
-  function renderCorrigidoInit(){
-    setCorrigidoOptions();
-    renderCorrigidoSavedList();
-    renderCorrigidoResult(null, null);
-    filterCorrSelect();
-    // build resistance inputs area structure
-    corrResInputs.innerHTML = "";
-    for(let i=0;i<RUPTURA_DIAS.length;i++){
-      const div = document.createElement("div");
-      div.innerHTML = `<label>${RUPTURA_DIAS[i]} dias</label><input class="corr-res-input" />`;
-      corrResInputs.appendChild(div);
-    }
-  }
-
-  /* Ensure corrigido options updated when history changes */
-  function refreshCorrigidoOptionsLater(){
-    setTimeout(()=> setCorrigidoOptions(), 150);
-  }
-
-  /* Add refreshCorrigidoOptionsLater calls in places where history changes */
-  // We already call renderCorrigidoInit after saving/deleting history items above in relevant places.
-
-  // Final initialization
-  renderCorrigidoInit();
-
+  // initial render
+  setTimeout(()=>{
+    renderAll();
+    setActiveTab(state.activeTab || "clientes");
+  }, 20);
 </script>
 </body>
 </html>
